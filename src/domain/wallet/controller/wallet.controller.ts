@@ -1,6 +1,6 @@
 import { Body, Controller, Param, Patch } from '@nestjs/common';
 import { WalletService } from 'src/domain/wallet/usecase/wallet.service';
-import { UpdateWalletDto } from '../dto';
+
 
 @Controller('wallet')
 export class WalletController {

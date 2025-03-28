@@ -1,7 +1,9 @@
+import { TransferModule } from './domain/transfer/transfer.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { UserModule } from 'src/domain/user';
+import { WalletModule } from './domain/wallet';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { UserModule } from 'src/domain/user';
       synchronize: true,
     } as TypeOrmModuleOptions),
     UserModule,
+    WalletModule,
+    TransferModule
   ],
 })
 export class AppModule {}
