@@ -12,7 +12,7 @@ export class AuthExternalService {
       const response = await firstValueFrom(
         this.httpService.get<IAuthenticationResponse>('http://localhost:3000/')
       );
-
+ 
       return response.data.authenticated;
     } catch (error) {
       throw new HttpException(

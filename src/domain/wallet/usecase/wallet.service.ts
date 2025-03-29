@@ -1,46 +1,77 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WalletEntity } from '../entity/wallet.entity';
+import { UserEntity } from 'src/domain/user/entity';
 
 @Injectable()
 export class WalletService {
-    constructor(
-        @InjectRepository(WalletEntity)
-        private walletRepository: Repository<WalletEntity>
-    ) {}
+  constructor(
+    @InjectRepository(WalletEntity)
+    private walletRepository: Repository<WalletEntity>,
+    @InjectRepository(UserEntity)
+    private userRepository: Repository<UserEntity>,
+  ) {}
 
-    async updateBalance(id: string, ballance: number): Promise<WalletEntity> {
-        const wallet = await this.walletRepository.findOne({
-            where: { id }
-        });
+  async create(idUser: string): Promise<WalletEntity> {
+    const user = await this.userRepository.findOne({
+      where: { id: idUser },
+    });
 
-        if (!wallet) {
-            throw new NotFoundException('Wallet not found');
-        }
-
-        if (!wallet.isActive) {
-            throw new Error('Cannot update balance of inactive wallet');
-        }
-
-        wallet.ballance = ballance;
-        wallet.updatedAt = new Date();
-
-        return this.walletRepository.save(wallet);
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
-    async updateStatus(id: string, isActive: boolean): Promise<WalletEntity> {
-        const wallet = await this.walletRepository.findOne({
-            where: { id }
-        });
+    const walletExists = await this.walletRepository.findOne({
+      where: { user: { id: idUser } },
+      relations: ['user'],
+    });
 
-        if (!wallet) {
-            throw new NotFoundException('Wallet not found');
-        }
+    // console.log("WALLET", walletExists);
 
-        wallet.isActive = isActive;
-        wallet.updatedAt = new Date();
-
-        return this.walletRepository.save(wallet);
+    if (walletExists) {
+       throw new BadRequestException('Wallet already exists for this user');
     }
+
+    const wallet = this.walletRepository.create({
+      user,
+    });
+    return await this.walletRepository.save(wallet);
+  }
+
+  async updateBalance(id: string, ballance: number): Promise<WalletEntity> {
+    const wallet = await this.walletRepository.findOne({
+      where: { id },
+    });
+
+   
+
+    if (!wallet) {
+      throw new NotFoundException('Wallet not found');
+    }
+
+    if (!wallet.isActive) {
+      throw new Error('Cannot update balance of inactive wallet');
+    }
+
+    wallet.ballance = ballance;
+    wallet.updatedAt = new Date();
+
+    return this.walletRepository.save(wallet);
+  }
+
+  async updateStatus(id: string, isActive: boolean): Promise<WalletEntity> {
+    const wallet = await this.walletRepository.findOne({
+      where: { id },
+    });
+
+    if (!wallet) {
+      throw new NotFoundException('Wallet not found');
+    }
+
+    wallet.isActive = isActive;
+    wallet.updatedAt = new Date();
+
+    return this.walletRepository.save(wallet);
+  }
 }

@@ -1,5 +1,5 @@
 import { WalletEntity } from "src/domain/wallet/entity/wallet.entity";
-import { Column, Entity, OneToOne } from "typeorm";
+import { Column, Entity, JoinColumn, OneToOne } from "typeorm";
 
 @Entity('Users')
 export class UserEntity {
@@ -30,6 +30,9 @@ export class UserEntity {
     @Column({ name: 'updated_at', type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
     updatedAt: Date
 
-    @OneToOne(() => WalletEntity, (wallet) => wallet.id)
+    @OneToOne(() => WalletEntity, wallet => wallet.user)
     wallet: WalletEntity
+
+
+    
 }
