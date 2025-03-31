@@ -7,18 +7,19 @@ export class EmailService {
 
   constructor() {
     this.transporter = nodemailer.createTransport({
-      host: process.env.MAIL_HOST,
-      port: parseInt(process.env.MAIL_PORT, 587),
+      host: process.env.EMAIL_HOST,
+      port: parseInt(process.env.EMAIL_PORT, 587),
       auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_PASSWORD,
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASSWORD,
       },
     });
   }
 
   async sendEmail(to: string, subject: string, text: string): Promise<void> {
+    console.log(process.env.EMAIL_USER)
     await this.transporter.sendMail({
-      from: `"No Reply" <${process.env.MAIL_USER}>`,
+      from: `"No Reply" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       text,

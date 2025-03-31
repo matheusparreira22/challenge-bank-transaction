@@ -66,7 +66,6 @@ export class TransferService {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
-
     try {
       const sender = await this.userRepository.findOne({
         where: { id: senderId },
@@ -117,6 +116,11 @@ export class TransferService {
           transfer,
         );
 
+        await this.emailService.sendEmail(
+          sender.email.toString(),
+          'Transfer Authorization',
+          'Your transfer was not authorized',
+        );
         await queryRunner.commitTransaction();
 
         // Mapeando para ReturnTransferDto com informações limitadas
@@ -124,12 +128,13 @@ export class TransferService {
           id: savedTransfer.id,
           sender: {
             id: sender.wallet.id,
-            ballance: sender.wallet.ballance
+            ballance: sender.wallet.ballance,
           },
           amount: savedTransfer.amount,
           authorized: savedTransfer.authorized,
-          createdAt: savedTransfer.createdAt
+          createdAt: savedTransfer.createdAt,
         };
+
 
         return returnDto;
       } else {
@@ -144,32 +149,30 @@ export class TransferService {
           id: savedTransfer.id,
           sender: {
             id: sender.wallet.id,
-            ballance: sender.wallet.ballance
+            ballance: sender.wallet.ballance,
           },
           amount: savedTransfer.amount,
           authorized: savedTransfer.authorized,
-          createdAt: savedTransfer.createdAt
+          createdAt: savedTransfer.createdAt,
         };
-
-        // await this.emailService.sendEmail(
-        //   sender.email.toString(),
-        //   'Transfer Authorization',
-        //   'Your transfer was not authorized',
-        // );
 
         return returnDto;
       }
     } catch (error) {
       // Em caso de erro, fazer rollback
-      await queryRunner.rollbackTransaction();
+      if (queryRunner.isTransactionActive) {
+        console.log('ROLLBACK');
+        await queryRunner.rollbackTransaction();
+      }
+      console.log (error);
+      // await queryRunner.rollbackTransaction();
       throw new InternalServerErrorException(
         `Failed to process transfer: ${error.message}`,
       );
+      
     } finally {
       // Liberar o queryRunner
       await queryRunner.release();
     }
   }
 }
-
-
