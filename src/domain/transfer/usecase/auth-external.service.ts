@@ -12,8 +12,9 @@ export class AuthExternalService {
       const response = await firstValueFrom(
         this.httpService.get<IAuthenticationResponse>('http://localhost:3000/')
       );
- 
-      return response.data.authenticated;
+     
+      return response.data.authorized;
+    
     } catch (error) {
       throw new HttpException(
         'Authentication service unavailable',

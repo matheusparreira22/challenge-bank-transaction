@@ -2,15 +2,18 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, DataSource } from 'typeorm';
 import { TransferEntity } from 'src/domain/transfer/entity/transfer.entity';
 import { UserEntity } from 'src/domain/user/entity';
-import { WalletService } from 'src/domain/wallet/usecase';
+import { WalletEntity } from 'src/domain/wallet/entity';
 import { CreateTransferDto } from 'src/domain/transfer/dto/create-transfer.dto';
 import { AuthExternalService } from './auth-external.service';
 import { EmailService } from 'src/domain/email/email.service';
+import { Money } from 'src/domain/transfer/helper/classes';
+import { ReturnTransferDto } from '../dto/return-transfer.dto';
 
 @Injectable()
 export class TransferService {
@@ -19,10 +22,11 @@ export class TransferService {
     private transferRepository: Repository<TransferEntity>,
     @InjectRepository(UserEntity)
     private userRepository: Repository<UserEntity>,
-
+    @InjectRepository(WalletEntity)
+    private walletRepository: Repository<WalletEntity>,
     private readonly authExternalService: AuthExternalService,
-    private walletService: WalletService,
     private emailService: EmailService,
+    private dataSource: DataSource,
   ) {}
 
   private async validateTransfer(
@@ -32,6 +36,10 @@ export class TransferService {
   ): Promise<void> {
     if (!sender || !receiver) {
       throw new NotFoundException('Sender or receiver not found');
+    }
+
+    if (amount <= 0) {
+      throw new BadRequestException('Invalid transfer amount');
     }
 
     if (sender.isLojist) {
@@ -51,81 +59,117 @@ export class TransferService {
     }
   }
 
-  // async simulateTransfer(
-  //     senderId: string,
-  //     dto: CreateTransferDto
-  // ): Promise<{ success: boolean, message: string }> {
-  //     try {
-  //         const sender = await this.userRepository.findOne({
-  //             where: { id: senderId },
-  //             relations: ['wallet']
-  //         });
-
-  //         const receiver = await this.userRepository.findOne({
-  //             where: { id: dto.receiverId },
-  //             relations: ['wallet']
-  //         });
-
-  //         await this.validateTransfer(sender, receiver, dto.amount);
-
-  //         return {
-  //             success: true,
-  //             message: 'Transfer simulation successful'
-  //         };
-  //     } catch (error) {
-  //         return {
-  //             success: false,
-  //             message: error.message
-  //         };
-  //     }
-  // }
-
   async createTransfer(
     senderId: string,
     dto: CreateTransferDto,
-  ): Promise<TransferEntity> {
-    const sender: UserEntity = await this.userRepository.findOne({
-      where: { id: senderId },
-      relations: ['wallet'],
-    });
+  ): Promise<ReturnTransferDto> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    const receiver: UserEntity = await this.userRepository.findOne({
-      where: { id: dto.receiverId },
-      relations: ['wallet'],
-    });
+    try {
+      const sender = await this.userRepository.findOne({
+        where: { id: senderId },
+        relations: ['wallet'],
+      });
 
-    await this.validateTransfer(sender, receiver, dto.amount);
+      const receiver = await this.userRepository.findOne({
+        where: { id: dto.receiverId },
+        relations: ['wallet'],
+      });
 
-    const authorized = await this.authExternalService.validateAuthentication();
+      await this.validateTransfer(sender, receiver, dto.amount);
 
-    const transfer = this.transferRepository.create({
-      sender: sender.wallet,
-      receiver: receiver.wallet,
-      amount: dto.amount,
-      authorized,
-    });
+      const authorized =
+        await this.authExternalService.validateAuthentication();
 
-    
-    if (authorized) {
-      await this.walletService.updateBalance(
-        sender.wallet.id,
-        sender.wallet.ballance - dto.amount,
+      // console.log(new Money(dto.amount).add(50.2).value);
+
+      const transfer = this.transferRepository.create({
+        sender: sender.wallet,
+        receiver: receiver.wallet,
+        amount: new Money(dto.amount).value,
+        authorized,
+      });
+
+      if (authorized) {
+        const senderWallet = await queryRunner.manager.findOne(WalletEntity, {
+          where: { id: sender.wallet.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        senderWallet.ballance = new Money(senderWallet.ballance).subtraction(
+          dto.amount,
+        ).value;
+
+        await queryRunner.manager.save(WalletEntity, senderWallet);
+
+        const receiverWallet = await queryRunner.manager.findOne(WalletEntity, {
+          where: { id: receiver.wallet.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        receiverWallet.ballance = new Money(receiverWallet.ballance).add(
+          dto.amount,
+        ).value;
+        await queryRunner.manager.save(WalletEntity, receiverWallet);
+
+        const savedTransfer = await queryRunner.manager.save(
+          TransferEntity,
+          transfer,
+        );
+
+        await queryRunner.commitTransaction();
+
+        // Mapeando para ReturnTransferDto com informações limitadas
+        const returnDto: ReturnTransferDto = {
+          id: savedTransfer.id,
+          sender: {
+            id: sender.wallet.id,
+            ballance: sender.wallet.ballance
+          },
+          amount: savedTransfer.amount,
+          authorized: savedTransfer.authorized,
+          createdAt: savedTransfer.createdAt
+        };
+
+        return returnDto;
+      } else {
+        const savedTransfer = await queryRunner.manager.save(
+          TransferEntity,
+          transfer,
+        );
+        await queryRunner.commitTransaction();
+
+        // Mesmo mapeamento para transferências não autorizadas
+        const returnDto: ReturnTransferDto = {
+          id: savedTransfer.id,
+          sender: {
+            id: sender.wallet.id,
+            ballance: sender.wallet.ballance
+          },
+          amount: savedTransfer.amount,
+          authorized: savedTransfer.authorized,
+          createdAt: savedTransfer.createdAt
+        };
+
+        // await this.emailService.sendEmail(
+        //   sender.email.toString(),
+        //   'Transfer Authorization',
+        //   'Your transfer was not authorized',
+        // );
+
+        return returnDto;
+      }
+    } catch (error) {
+      // Em caso de erro, fazer rollback
+      await queryRunner.rollbackTransaction();
+      throw new InternalServerErrorException(
+        `Failed to process transfer: ${error.message}`,
       );
-      
-      console.log(typeof receiver.wallet.ballance, typeof dto.amount);
-      await this.walletService.updateBalance(
-        receiver.wallet.id,
-        receiver.wallet.ballance + dto.amount,
-      );
+    } finally {
+      // Liberar o queryRunner
+      await queryRunner.release();
     }
-    
-    const result = await this.transferRepository.save(transfer);
-    // await this.emailService.sendEmail(
-    //   sender.email.trim(),
-    //   'Transfer Notification',
-    //   `Your transfer of ${dto.amount} to ${receiver.fullName} was ${authorized ? 'authorized' : 'denied'}.`,
-    // );
-
-    return result;
   }
 }
+
+

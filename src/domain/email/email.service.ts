@@ -23,5 +23,6 @@ export class EmailService {
       subject,
       text,
     });
+    console.log('Email sent successfully');
   }
 }
