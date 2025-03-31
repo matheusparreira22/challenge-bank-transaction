@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WalletEntity } from '../entity/wallet.entity';
 import { UserEntity } from 'src/domain/user/entity';
+import {Money} from 'src/domain/wallet/helper/classes';
 
 @Injectable()
 export class WalletService {
@@ -11,6 +12,8 @@ export class WalletService {
     private walletRepository: Repository<WalletEntity>,
     @InjectRepository(UserEntity)
     private userRepository: Repository<UserEntity>,
+
+  
   ) {}
 
   async create(idUser: string): Promise<WalletEntity> {
@@ -44,7 +47,7 @@ export class WalletService {
       where: { id },
     });
 
-   
+    ballance = new Money(ballance).value;
 
     if (!wallet) {
       throw new NotFoundException('Wallet not found');

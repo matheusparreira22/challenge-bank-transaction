@@ -7,17 +7,17 @@ export class EmailService {
 
   constructor() {
     this.transporter = nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: parseInt(process.env.EMAIL_PORT, 587),
+      host: 'sandbox.smtp.mailtrap.io',
+      port: 2525,
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD,
+        user: 'e02afe5265580f',
+        pass: '****dbb9',
       },
     });
   }
 
   async sendEmail(to: string, subject: string, text: string): Promise<void> {
-    console.log(process.env.EMAIL_USER)
+    console.log(process.env.EMAIL_USER);
     await this.transporter.sendMail({
       from: `"No Reply" <${process.env.EMAIL_USER}>`,
       to,
