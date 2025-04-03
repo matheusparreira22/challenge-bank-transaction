@@ -8,7 +8,6 @@ export class WalletController {
 
   @Post(':iduser')
   async create(@Param('iduser') userId: string) {
-    console.log(userId);
     return this.walletService.create(userId);
   }
 
