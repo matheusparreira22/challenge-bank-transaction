@@ -82,8 +82,6 @@ export class TransferService {
       const authorized =
         await this.authExternalService.validateAuthentication();
 
-      // console.log(new Money(dto.amount).add(50.2).value);
-
       const transfer = this.transferRepository.create({
         sender: sender.wallet,
         receiver: receiver.wallet,
@@ -119,11 +117,10 @@ export class TransferService {
         await this.emailService.sendEmail(
           sender.email.toString(),
           'Transfer Authorization',
-          'Your transfer was not authorized',
+          'Your transfer was authorized',
         );
         await queryRunner.commitTransaction();
 
-        // Mapeando para ReturnTransferDto com informações limitadas
         const returnDto: ReturnTransferDto = {
           id: savedTransfer.id,
           sender: {
@@ -135,7 +132,6 @@ export class TransferService {
           createdAt: savedTransfer.createdAt,
         };
 
-
         return returnDto;
       } else {
         const savedTransfer = await queryRunner.manager.save(
@@ -144,7 +140,6 @@ export class TransferService {
         );
         await queryRunner.commitTransaction();
 
-        // Mesmo mapeamento para transferências não autorizadas
         const returnDto: ReturnTransferDto = {
           id: savedTransfer.id,
           sender: {
@@ -159,19 +154,14 @@ export class TransferService {
         return returnDto;
       }
     } catch (error) {
-      // Em caso de erro, fazer rollback
       if (queryRunner.isTransactionActive) {
-        console.log('ROLLBACK');
         await queryRunner.rollbackTransaction();
       }
-      console.log (error);
-      // await queryRunner.rollbackTransaction();
+
       throw new InternalServerErrorException(
         `Failed to process transfer: ${error.message}`,
       );
-      
     } finally {
-      // Liberar o queryRunner
       await queryRunner.release();
     }
   }

@@ -8,8 +8,8 @@ import { WalletModule } from './domain/wallet';
 @Module({
   imports: [
     ConfigModule.forRoot({
-      // isGlobal: true,
-      // envFilePath: ['.env', '.env.development.local'],
+      isGlobal: true,
+      envFilePath: ['.env', '.env.development.local'],
       // cache: true,
       // expandVariables: true,
     }),
@@ -25,7 +25,7 @@ import { WalletModule } from './domain/wallet';
     } as TypeOrmModuleOptions),
     UserModule,
     WalletModule,
-    TransferModule
+    TransferModule,
   ],
 })
 export class AppModule {}

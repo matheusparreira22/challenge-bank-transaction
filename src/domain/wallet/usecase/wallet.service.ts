@@ -30,7 +30,7 @@ export class WalletService {
       relations: ['user'],
     });
 
-    // console.log("WALLET", walletExists);
+
 
     if (walletExists) {
        throw new BadRequestException('Wallet already exists for this user');
